@@ -210,6 +210,11 @@ class TestRepr(unittest.TestCase):
         del self.t
 
 
+class Test_ValidateOffsetHoursAndOffsetMinutesIsStaticMethod(unittest.TestCase):
+    def test_method_is_staticmethod(self):
+        self.assertTrue(isinstance(TimeZone.__dict__['_validate_offset_hours_and_offset_minutes'], staticmethod))
+
+
 if __name__ == "__main__":
     unittest.main()
 
