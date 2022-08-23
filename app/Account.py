@@ -2,11 +2,20 @@
 import itertools
 import numbers
 from app.TimeZone import TimeZone
+from datetime import datetime
+from collections import namedtuple
 
 
 class Account:
     transaction_counter = itertools.count(100)
     _interest_rate = 0.5
+
+    _transaction_codes = {
+        'deposit': 'D',
+        'withdraw': 'W',
+        'interest': 'I',
+        'rejected': 'X'
+    }
 
     def __init__(self, account_number, first_name, last_name, timezone=None, initial_balance=0):
         # in practice we probably would want to add checks to make sure these values are valid / non-empty
@@ -18,7 +27,7 @@ class Account:
             timezone = TimeZone(0, 0, 'UTC')
         self.timezone = timezone
 
-        self._balance = float(initial_balance)  # force use of floats here, but maybe Decimal would be better
+        self._balance = Account.validate_real_number(initial_balance, 0.01)
 
     @property
     def account_number(self):
@@ -76,6 +85,92 @@ class Account:
             raise ValueError(f'{field_title} cannot be empty.')
         setattr(self, property_name, value)
 
+    @staticmethod
+    def validate_real_number(value, min_value=None):
+        """Refactoring Error for balance, deposit and withdrawal.
+        Validate for real and negative numbers"""
+        if not isinstance(value, numbers.Real):
+            raise ValueError('Value must be a real number.')
+        if min_value is not None and value < min_value:
+            raise ValueError(f'Value must be at least {min_value}')
+        # validation passed, return valid value
+        return value
+
+    def generate_confirmation_code(self, transaction_code):
+        # main difficulty here is to generate the current time in UTC using this formatting:
+        # YYYYMMDDHHMMSS
+        dt_str = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+        return f'{transaction_code}-{self.account_number}-{dt_str}-{next(Account.transaction_counter)}'
+
+    @staticmethod
+    def parse_confirmation_code(confirmation_code, preferred_time_zone=None):
+        """Function that converts string confirmation number to separate pieces."""
+        Confirmation = namedtuple('Confirmation', 'account_number transaction_code transaction_id time_utc time')
+
+        # dummy-A100-20190325224918-101
+        parts = confirmation_code.split('-')
+        if len(parts) != 4:
+            # really simplistic validation here - would need something better
+            raise ValueError('Invalid confirmation code')
+
+        # unpack into separate variables
+        transaction_code, account_number, raw_dt_utc, transaction_id = parts
+
+        # need to convert raw_dt_utc into a proper datetime object
+        try:
+            dt_utc = datetime.strptime(raw_dt_utc, '%Y%m%d%H%M%S')
+        except ValueError as ex:
+            # again, probably need better error handling here
+            raise ValueError('Invalid transaction datetime') from ex  # keep stacktrace too
+
+        if preferred_time_zone is None:
+            preferred_time_zone = TimeZone(0, 0, 'UTC')
+
+        if not isinstance(preferred_time_zone, TimeZone):
+            raise ValueError('Invalid TimeZone specified.')
+
+        dt_preferred = dt_utc + preferred_time_zone.offset
+        dt_preferred_str = f"{dt_preferred.strftime('%Y-%m-%d %H:%M:%S')} ({preferred_time_zone.name})"
+
+        return Confirmation(account_number, transaction_code, transaction_id, dt_utc.isoformat(), dt_preferred_str)
+
+    def deposit(self, value):
+        # validate for real and negative numbers
+        value = Account.validate_real_number(value, min_value=0.01)
+
+        # get transaction code
+        transaction_code = Account._transaction_codes['deposit']
+        # generate a confirmation code
+        conf_code = self.generate_confirmation_code(transaction_code)
+
+        # make deposit and return conf code
+        self._balance += value
+        return conf_code
+
+    def withdrawal(self, value):
+        # validate for real and negative numbers
+        value = Account.validate_real_number(value, min_value=0.01)
+
+        accepted = False
+        if self.balance - value < 0:
+            # insufficient funds - we'll reject this transaction
+            transaction_code = Account._transaction_codes['rejected']
+        else:
+            transaction_code = Account._transaction_codes['withdraw']
+            accepted = True
+
+        conf_code = self.generate_confirmation_code(transaction_code)
+
+        if accepted:
+            self._balance -= value
+        return conf_code
+
+    def pay_interest(self):
+        interest = self.balance * Account.get_interest_rate() / 100
+        conf_code = self.generate_confirmation_code(Account._transaction_codes['interest'])
+        self._balance += interest
+        return conf_code
+
     def __eq__(self, other):
         """This is needed if we want to compare TimeZones()"""
         return (isinstance(other, Account) and
@@ -85,12 +180,15 @@ class Account:
                 self.balance == other.balance and
                 self.account_number == other.account_number)
 
+
 # if __name__ == '__main__':
 #     a = Account('123456', 'Eric', 'Idle', TimeZone(-2, 0, 'MTS'), 1000)
+#     print(a.balance)
 #     print(a.first_name)
 #     a.first_name = "Daniel"
 #     print(a.first_name)
 #     print(a.balance)
+#     print(a.generate_confirmation_code('D'))
 #     print(a.deposit(100))
 #     print(a.balance)
 #

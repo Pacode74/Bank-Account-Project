@@ -6,6 +6,8 @@ import itertools
 import inspect
 import types
 from string import punctuation
+from datetime import datetime
+from collections import namedtuple
 
 
 class TestClassTransactionCounterAttribute(unittest.TestCase):
@@ -98,7 +100,7 @@ class TestClassInterestRateAttribute(unittest.TestCase):
         del self.a
 
 
-class TestInstanceAccountNumberAttribute(unittest.TestCase):
+class TestClassTransactionCounterAttribute(unittest.TestCase):
     def setUp(self):
         self.account_number = 'A100'
         self.first_name = 'FIRST'
@@ -352,6 +354,11 @@ class TestBalanceAttribute(unittest.TestCase):
         self.assertEqual(self.a.balance, self.balance)
         self.assertEqual(self.a.balance, 100.00)
 
+    def test_create_account_negative_balance(self):
+        self.balance = -100.00
+        with self.assertRaises(ValueError):
+            self.a = Account(self.account_number, self.first_name, self.last_name, self.tz, self.balance)
+
     def test_balance_property__balance_attribute(self):
         # print(self.a.__dict__)
         self.assertEqual(self.a._balance, self.balance)
@@ -456,10 +463,10 @@ class TestClassMethodSetInterestRateMethod(unittest.TestCase):
         # self.assertTrue(isinstance(Account.__dict__['put_here_the_name_of_method'], staticmethod))
         # # alternatively:
         # self.assertTrue(isinstance(inspect.getattr_static(Account, 'put_here_the_name_of_method'), staticmethod))
-
+        #
         # # testing if method is just a function, import types:
         # self.assertTrue(isinstance(Account.__dict__['put_here_the_name_of_method'], types.FunctionType))
-
+        #
         # # test is method is a property:
         # self.assertTrue(isinstance(inspect.getattr_static(Account, 'put_here_the_name_of_method'), property))
 
@@ -648,25 +655,335 @@ class TestCompareInstances(unittest.TestCase):
         del self.a
 
 
+class TestStaticMethodValidateRealNumber(unittest.TestCase):
+    def setUp(self):
+        self.account_number = 'A100'
+        self.first_name = 'FIRST'
+        self.last_name = 'LAST'
+        self.tz = TimeZone(1, 30, 'TZ')
+        self.balance = 100.00
+        self.a = Account(self.account_number, self.first_name, self.last_name, self.tz, self.balance)
+
+    def test_static_method(self):
+        """Test that it is a method and that it is a static method."""
+        # testing if method is staticmethod:
+        self.assertTrue(isinstance(Account.__dict__['validate_real_number'], staticmethod))
+        # alternatively:
+        self.assertTrue(isinstance(inspect.getattr_static(Account, 'validate_real_number'), staticmethod))
+
+    def test_validate_real_number_easy(self):
+        self.assertEqual(type(self.a).validate_real_number(1.0, min_value=0.1), 1.0)
+        self.assertEqual(self.a.validate_real_number(1.0, min_value=0.1), 1.0)
+
+    def test_if_validate_real_number_method_belongs_to_class(self):
+        # print(Account.__dict__)
+        self.assertIn('validate_real_number', Account.__dict__)
+        # alternatively 1:
+        # print(type(self.a).__dict__)
+        self.assertIn('validate_real_number', type(self.a).__dict__)
+        # alternatively 2:
+        # print(self.a.__class__.__dict__)
+        self.assertIn('validate_real_number', self.a.__class__.__dict__)
+
+    def test_wrong_input(self):
+        # with self.assertRaises(ValueError):
+        #     self.a.__class__.set_interest_rate('John')
+
+        wrong_types = [0, 'John', None, -0.5, "", int, str, float, complex, list, tuple, range, dict, set, frozenset]
+        for entry in wrong_types:
+            self.assertRaises(ValueError, self.a.__class__.validate_real_number, entry, 0.1)
+        for char in set(punctuation):
+            self.assertRaises(ValueError, self.a.__class__.validate_real_number, char, 0.1)
+
+    def tearDown(self):
+        del self.account_number
+        del self.first_name
+        del self.last_name
+        del self.tz
+        del self.balance
+        del self.a
+
+
+class TestGenerateConfirmationCode(unittest.TestCase):
+
+    def setUp(self):
+        Account.transaction_counter = itertools.count(100)
+        self.account_number = 'A100'
+        self.first_name = 'FIRST'
+        self.last_name = 'LAST'
+        self.tz = TimeZone(1, 30, 'TZ')
+        self.balance = 100.00
+        self.b = Account(self.account_number, self.first_name, self.last_name, self.tz, self.balance)
+
+    def test_generate_confirmation_code_is_method(self):
+        """Test that it is a function method."""
+        # testing if method is just a function, import types:
+        self.assertTrue(isinstance(Account.__dict__['generate_confirmation_code'], types.FunctionType))
+
+    def test_generate_confirmation_code_easy(self):
+        dt_str = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+        trans_counter = itertools.count(100)
+        acc_number = 'A100'
+        trans_codes = {
+            'deposit': 'D',
+            'withdraw': 'W',
+            'interest': 'I',
+            'rejected': 'X'
+        }
+
+        r = trans_codes['deposit'] + "-" + acc_number + "-" + str(dt_str) + "-" + str(next(trans_counter))
+        self.assertEqual(self.b.generate_confirmation_code('D'), r)
+
+    def test_if_generate_confirmation_code_method_belongs_to_class(self):
+        # print(Account.__dict__)
+        self.assertIn('generate_confirmation_code', Account.__dict__)
+
+    def tearDown(self):
+        del self.account_number
+        del self.first_name
+        del self.last_name
+        del self.tz
+        del self.balance
+        del self.b
+
+
+class TestStaticMethodParseConfirmationCode(unittest.TestCase):
+    def setUp(self):
+        self.account_number = 'A100'
+        self.first_name = 'FIRST'
+        self.last_name = 'LAST'
+        self.tz = TimeZone(1, 30, 'TZ')
+        self.balance = 100.00
+        self.a = Account(self.account_number, self.first_name, self.last_name, self.tz, self.balance)
+        self.trans_codes = {
+            'deposit': 'D',
+            'withdraw': 'W',
+            'interest': 'I',
+            'rejected': 'X'
+        }
+        self.conf_code = self.a.generate_confirmation_code(self.trans_codes['deposit'])
+
+    def test_static_method(self):
+        """Test that it is a method and that it is a static method."""
+        # testing if method is staticmethod:
+        self.assertTrue(isinstance(Account.__dict__['parse_confirmation_code'], staticmethod))
+        # alternatively:
+        self.assertTrue(isinstance(inspect.getattr_static(Account, 'parse_confirmation_code'), staticmethod))
+
+    def test_parse_confirmation_code_with_preferred_time_zone(self):
+        # print(conf_code)
+        # print(type(self.a).parse_confirmation_code(conf_code, TimeZone(1, 30, "MTC")))
+        Confirm = namedtuple('Confirmation', 'account_number transaction_code transaction_id time_utc time')
+        parts = self.conf_code.split('-')
+        transaction_code, account_number, raw_dt_utc, transaction_id = parts
+        dt_utc = datetime.strptime(raw_dt_utc, '%Y%m%d%H%M%S')
+        preferred_time_zone = TimeZone(1, 30, "MTC")
+        dt_preferred = dt_utc + preferred_time_zone.offset
+        dt_preferred_str = f"{dt_preferred.strftime('%Y-%m-%d %H:%M:%S')} ({preferred_time_zone.name})"
+
+        self.assertEqual(type(self.a).parse_confirmation_code(self.conf_code, TimeZone(1, 30, "MTC")),
+                        Confirm(account_number, transaction_code, transaction_id, dt_utc.isoformat(), dt_preferred_str))
+
+    def test_parse_confirmation_code_without_preferred_time_zone(self):
+        # print(conf_code)
+        # print(type(self.a).parse_confirmation_code(conf_code, TimeZone(1, 30, "MTC")))
+        Confirm = namedtuple('Confirmation', 'account_number transaction_code transaction_id time_utc time')
+        parts = self.conf_code.split('-')
+        transaction_code, account_number, raw_dt_utc, transaction_id = parts
+        dt_utc = datetime.strptime(raw_dt_utc, '%Y%m%d%H%M%S')
+        preferred_time_zone = TimeZone(0, 0, "UTC")
+        dt_preferred = dt_utc + preferred_time_zone.offset
+        dt_preferred_str = f"{dt_preferred.strftime('%Y-%m-%d %H:%M:%S')} ({preferred_time_zone.name})"
+
+        self.assertEqual(type(self.a).parse_confirmation_code(self.conf_code, preferred_time_zone=None),
+                         Confirm(account_number, transaction_code, transaction_id, dt_utc.isoformat(), dt_preferred_str))
+
+    def test_if_parse_confirmation_code_method_belongs_to_class(self):
+        # print(Account.__dict__)
+        self.assertIn('parse_confirmation_code', Account.__dict__)
+        # alternatively 1:
+        # print(type(self.a).__dict__)
+        self.assertIn('parse_confirmation_code', type(self.a).__dict__)
+        # alternatively 2:
+        # print(self.a.__class__.__dict__)
+        self.assertIn('parse_confirmation_code', self.a.__class__.__dict__)
+
+    def test_wrong_input_easy(self):
+        # with self.assertRaises(ValueError):
+        #     self.a.__class__.set_interest_rate('John')
+
+        wrong_values = ['D-A100-20220822200421-100-SD', 'D-A100-20220822200421', 'D-A100-08222022200421-100',
+                        'D-A100-John-100']  # 'D-A100-20220822200421-100'
+        for entry in wrong_values:
+            self.assertRaises(ValueError, self.a.__class__.parse_confirmation_code, entry)
+
+        self.assertRaises(ValueError, self.a.__class__.parse_confirmation_code, 'D-A100-20220822200421-100',
+                          preferred_time_zone=str)
+
+    def tearDown(self):
+        del self.account_number
+        del self.first_name
+        del self.last_name
+        del self.tz
+        del self.balance
+        del self.a
+        del self.trans_codes
+        del self.conf_code
+
+
+class TestDeposit(unittest.TestCase):
+
+    def setUp(self):
+        Account.transaction_counter = itertools.count(100)
+        self.account_number = 'A100'
+        self.first_name = 'FIRST'
+        self.last_name = 'LAST'
+        self.tz = TimeZone(1, 30, 'TZ')
+        self.balance = 100.00
+        self.b = Account(self.account_number, self.first_name, self.last_name, self.tz, self.balance)
+
+    def test_deposit_is_method(self):
+        """Test that it is a function method."""
+        # testing if method is just a function, import types:
+        self.assertTrue(isinstance(Account.__dict__['deposit'], types.FunctionType))
+
+    def test_deposit_easy(self):
+        l1 = [self.b.deposit(100) for _ in range(4)]
+        self.assertEqual(self.b.balance, 500)
+
+    def test_if_generate_confirmation_code_method_belongs_to_class(self):
+        # print(Account.__dict__)
+        self.assertIn('deposit', Account.__dict__)
+
+    def test_account_deposit_ok(self):
+        conf_code = self.b.deposit(100)
+        self.assertIn('D-', conf_code)  # checks if `D-` in the confirmation code
+        # alternatively:
+        # self.assertTrue(conf_code.startswith('D-'))
+
+    def test_account_deposit_negative_amount(self):
+        with self.assertRaises(ValueError):
+            conf_code = self.b.deposit(-100)
+
+    def tearDown(self):
+        del self.account_number
+        del self.first_name
+        del self.last_name
+        del self.tz
+        del self.balance
+        del self.b
+
+
+class TestWithdrawal(unittest.TestCase):
+
+    def setUp(self):
+        Account.transaction_counter = itertools.count(100)
+        self.account_number = 'A100'
+        self.first_name = 'FIRST'
+        self.last_name = 'LAST'
+        self.tz = TimeZone(1, 30, 'TZ')
+        self.balance = 100.00
+        self.b = Account(self.account_number, self.first_name, self.last_name, self.tz, self.balance)
+
+    def test_withdrawal_is_method(self):
+        """Test that it is a function method."""
+        # testing if method is just a function, import types:
+        self.assertTrue(isinstance(Account.__dict__['withdrawal'], types.FunctionType))
+
+    def test_deposit_easy(self):
+        l1 = [self.b.deposit(100) for _ in range(4)]
+        l2 = [self.b.withdrawal(50) for _ in range(4)]
+        self.assertEqual(self.b.balance, 300)
+
+    def test_if_generate_confirmation_code_method_belongs_to_class(self):
+        # print(Account.__dict__)
+        self.assertIn('withdrawal', Account.__dict__)
+
+    def test_withdrawal_ok(self):
+        conf_code = self.b.withdrawal(50)
+        self.assertIn('W-', conf_code)  # checks if `W-` in the confirmation code
+        # alternatively:
+        # self.assertTrue(conf_code.startswith('w-'))
+
+    def test_withdrawal_fail(self):
+        conf_code = self.b.withdrawal(300)
+        self.assertIn('X-', conf_code)  # checks if `X-` in the confirmation code
+        # alternatively:
+        # self.assertTrue(conf_code.startswith('x-'))
+
+    def test_account_deposit_negative_amount(self):
+        with self.assertRaises(ValueError):
+            conf_code = self.b.withdrawal(-100)
+
+    def tearDown(self):
+        del self.account_number
+        del self.first_name
+        del self.last_name
+        del self.tz
+        del self.balance
+        del self.b
+
+
+class TestPayInterest(unittest.TestCase):
+
+    def setUp(self):
+        Account.transaction_counter = itertools.count(100)
+        self.account_number = 'A100'
+        self.first_name = 'FIRST'
+        self.last_name = 'LAST'
+        self.tz = TimeZone(1, 30, 'TZ')
+        self.balance = 1000.00
+        self.b = Account(self.account_number, self.first_name, self.last_name, self.tz, self.balance)
+        self.b.set_interest_rate(0.5)
+
+    def test_pay_interest_is_method(self):
+        """Test that it is a function method."""
+        # testing if method is just a function, import types:
+        self.assertTrue(isinstance(Account.__dict__['pay_interest'], types.FunctionType))
+
+    def test_pay_interest_easy(self):
+        l1 = [self.b.pay_interest() for _ in range(2)]
+        self.assertEqual(self.b.balance, 1010.025)
+
+    def test_pay_interest_print(self):
+        interest = self.b.pay_interest()
+        self.assertIn('I-', interest)
+
+    def test_if_generate_confirmation_code_method_belongs_to_class(self):
+        # print(Account.__dict__)
+        self.assertIn('pay_interest', Account.__dict__)
+
+    def tearDown(self):
+        del self.account_number
+        del self.first_name
+        del self.last_name
+        del self.tz
+        del self.balance
+        del self.b
+
+
 if __name__ == "__main__":
     unittest.main()
 
 # In unittest mode:
 # PS C:\Users\Pavlo\Desktop\Projects\Testing\Unittest\Bank Account Project> python -m tests.test_Account
-# .....................................................................
+# ....................................................................................................
 # ----------------------------------------------------------------------
-# Ran 69 tests in 0.011s
+# Ran 100 tests in 0.021s
 #
 # OK
+
 
 # In coverage mode:
 # PS C:\Users\Pavlo\Desktop\Projects\Testing\Unittest\Bank Account Project> coverage run -m tests.test_Account
-# .....................................................................
+# ....................................................................................................
 # ----------------------------------------------------------------------
-# Ran 69 tests in 0.011s
+# Ran 100 tests in 0.030s
 #
 # OK
+
 # PS C:\Users\Pavlo\Desktop\Projects\Testing\Unittest\Bank Account Project> coverage html
 # Wrote HTML report to htmlcov\index.html
 
+# Look at Account.py in Index.html
 
