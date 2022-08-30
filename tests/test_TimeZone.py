@@ -7,6 +7,12 @@ from datetime import timedelta, datetime
 from string import punctuation
 
 
+class TestTimeZone(unittest.TestCase):
+
+    def test_timezone(self):
+        self.assertIsInstance(TimeZone, type)
+
+
 class TestNameAttribute(unittest.TestCase):
     def setUp(self):
         self.t = TimeZone(-0, 0, 'MTS')

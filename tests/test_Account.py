@@ -1,5 +1,6 @@
 """For import to work correctly mark `Bank account Project` as Source Root"""
 import unittest
+from unittest.mock import patch
 from app.Account import Account
 from app.TimeZone import TimeZone
 import itertools
@@ -8,6 +9,35 @@ import types
 from string import punctuation
 from datetime import datetime
 from collections import namedtuple
+from unittest.mock import Mock
+
+
+class TestAccountClass(unittest.TestCase):
+    def setUp(self):
+        self.account_number = 'A100'
+        self.first_name = 'FIRST'
+        self.last_name = 'LAST'
+        self.tz = TimeZone(1, 30, 'TZ')
+        self.balance = 100.00
+        self.a = Account(self.account_number, self.first_name, self.last_name, self.tz, self.balance)
+
+    def test_account_is_instance_of_type(self):
+        self.assertIsInstance(Account, type)
+
+    def test_instance_has_four_attr(self):
+        msg = 'Four instance attributes are not defined.'
+        actual = len([attr for attr in dir(self.a)
+                      if not attr.startswith('_')])
+        expected = 16
+        self.assertEqual(actual, expected, msg)
+
+    def tearDown(self):
+        del self.account_number
+        del self.first_name
+        del self.last_name
+        del self.tz
+        del self.balance
+        del self.a
 
 
 class TestClassTransactionCounterAttribute(unittest.TestCase):
@@ -49,6 +79,25 @@ class TestClassTransactionCounterAttribute(unittest.TestCase):
         # alternatively 2:
         # print(self.a.__class__.__dict__)
         self.assertIn('transaction_counter', self.a.__class__.__dict__)
+
+    def test_get_transaction_counter_as_333_without_patch_decorator(self):
+        """mocking next() and datatime.utcnow"""
+        with patch("app.Account.next") as mock_next:
+            mock_next.return_value = 333
+            with patch("app.Account.datetime") as mock_datetime:
+                mock_datetime.utcnow = Mock(return_value=datetime(2011, 3, 9, 8, 0, 0))
+                actual = self.a.deposit(100)
+                expected = 'D-A100-20110309080000-333'
+                self.assertEqual(actual, expected)
+
+    @patch("app.Account.next")
+    @patch("app.Account.datetime")
+    def test_get_transaction_counter_as_333_with_patch_decorator(self, mock_dt, mock_next):
+        mock_dt.utcnow = Mock(return_value=datetime(2005, 3, 1, 6, 0, 0))
+        mock_next.return_value = 444
+        actual = self.a.deposit(100)
+        expected = 'D-A100-20050301060000-444'
+        self.assertEqual(actual, expected)
 
     def tearDown(self):
         del self.account_number
@@ -100,7 +149,7 @@ class TestClassInterestRateAttribute(unittest.TestCase):
         del self.a
 
 
-class TestClassTransactionCounterAttribute(unittest.TestCase):
+class TestAccountNumber(unittest.TestCase):
     def setUp(self):
         self.account_number = 'A100'
         self.first_name = 'FIRST'
@@ -139,8 +188,22 @@ class TestClassTransactionCounterAttribute(unittest.TestCase):
         # print(self.a.__class__.__dict__)
         self.assertIn('account_number', self.a.__class__.__dict__)
 
-    def test_method_is_property(self):
+    def test_account_number_is_property(self):
+        self.assertIsInstance(Account.account_number, property)
+        # alternatively
         self.assertTrue(isinstance(inspect.getattr_static(Account, 'account_number'), property))
+
+    def test_account_number(self):
+        cases = [
+            ('test1', 'A100', 'FIRST', 'LAST', TimeZone(1, 30, 'TZ'), 100.00, 'A100'),
+            ('test2', 'A200', 'FIRST', 'LAST', TimeZone(1, 30, 'TZ'), 100.00, 'A200'),
+            ('test3', 'B453', 'FIRST', 'LAST', TimeZone(1, 30, 'TZ'), 100.00, 'B453'),
+            ('test4', 'G9956', 'FIRST', 'LAST', TimeZone(1, 30, 'TZ'), 100.00, 'G9956'),
+        ]
+
+        for test, account_number, first_name, last_name, tz, balance, result in cases:
+            with self.subTest(test_number=f'Test # {test}'):
+                self.assertEqual(Account(account_number, first_name, last_name, tz, balance).account_number, result)
 
     def tearDown(self):
         del self.account_number
@@ -151,7 +214,7 @@ class TestClassTransactionCounterAttribute(unittest.TestCase):
         del self.a
 
 
-class TestInstanceFirstNameAttribute(unittest.TestCase):
+class TestFirstName(unittest.TestCase):
     def setUp(self):
         self.account_number = 'A100'
         self.first_name = 'FIRST'
@@ -191,7 +254,9 @@ class TestInstanceFirstNameAttribute(unittest.TestCase):
         # print(self.a.__class__.__dict__)
         self.assertIn('first_name', self.a.__class__.__dict__)
 
-    def test_method_is_property(self):
+    def test_first_name_is_property(self):
+        self.assertIsInstance(Account.first_name, property)
+        # alternatively:
         self.assertTrue(isinstance(inspect.getattr_static(Account, 'first_name'), property))
 
     def test_set_name_property(self):
@@ -205,6 +270,30 @@ class TestInstanceFirstNameAttribute(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.a.first_name = ''
 
+    def test_first_name(self):
+        cases = [
+            ('test1', 'A100', 'Daniel', 'LAST', TimeZone(1, 30, 'TZ'), 100.00, 'Daniel'),
+            ('test2', 'A200', 'John', 'LAST', TimeZone(1, 30, 'TZ'), 100.00, 'John'),
+            ('test3', 'B453', 'Fred', 'LAST', TimeZone(1, 30, 'TZ'), 100.00, 'Fred'),
+            ('test4', 'G9956', 'Cris', 'LAST', TimeZone(1, 30, 'TZ'), 100.00, 'Cris'),
+        ]
+
+        for test, account_number, first_name, last_name, tz, balance, result in cases:
+            with self.subTest(test_number=f'Test # {test}'):
+                self.assertEqual(Account(account_number, first_name, last_name, tz, balance).first_name, result)
+
+    def test_first_name_incorrect_type_should_raise_error(self):
+        cases = [
+            ('test1', 'A100', '', 'LAST', TimeZone(1, 30, 'TZ'), 100.00, 'Daniel'),
+            ('test2', 'A200', None, 'LAST', TimeZone(1, 30, 'TZ'), 100.00, 'John'),
+            ('test3', 'B453', '', 'LAST', TimeZone(1, 30, 'TZ'), 100.00, 'Fred'),
+            ('test4', 'G9956', None, 'LAST', TimeZone(1, 30, 'TZ'), 100.00, 'Cris'),
+        ]
+
+        for test, account_number, first_name, last_name, tz, balance, result in cases:
+            with self.subTest(test_number=f'Test # {test}'):
+                self.assertRaises(ValueError, Account, account_number, first_name, last_name, tz, balance)
+
     def tearDown(self):
         del self.account_number
         del self.first_name
@@ -214,7 +303,7 @@ class TestInstanceFirstNameAttribute(unittest.TestCase):
         del self.a
 
 
-class TestInstanceLastNameAttribute(unittest.TestCase):
+class TestLastName(unittest.TestCase):
     def setUp(self):
         self.account_number = 'A100'
         self.first_name = 'FIRST'
@@ -254,7 +343,9 @@ class TestInstanceLastNameAttribute(unittest.TestCase):
         # print(self.a.__class__.__dict__)
         self.assertIn('last_name', self.a.__class__.__dict__)
 
-    def test_method_is_property(self):
+    def test_last_name_is_property(self):
+        self.assertIsInstance(Account.last_name, property)
+        # alternatively:
         self.assertTrue(isinstance(inspect.getattr_static(Account, 'last_name'), property))
 
     def test_set_last_name_property(self):
@@ -268,6 +359,30 @@ class TestInstanceLastNameAttribute(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.a.last_name = ''
 
+    def test_last_name(self):
+        cases = [
+            ('test1', 'A100', 'Daniel', 'de Boer', TimeZone(1, 30, 'TZ'), 100.00, 'de Boer'),
+            ('test2', 'A200', 'John', 'Lennon', TimeZone(1, 30, 'TZ'), 100.00, 'Lennon'),
+            ('test3', 'B453', 'Fred', 'Mercury', TimeZone(1, 30, 'TZ'), 100.00, 'Mercury'),
+            ('test4', 'G9956', 'Cris', 'Scott', TimeZone(1, 30, 'TZ'), 100.00, 'Scott'),
+        ]
+
+        for test, account_number, first_name, last_name, tz, balance, result in cases:
+            with self.subTest(test_number=f'Test # {test}'):
+                self.assertEqual(Account(account_number, first_name, last_name, tz, balance).last_name, result)
+
+    def test_last_name_incorrect_type_should_raise_error(self):
+        cases = [
+            ('test1', 'A100', 'Daniel', '', TimeZone(1, 30, 'TZ'), 100.00, 'Daniel'),
+            ('test2', 'A200', 'John', None, TimeZone(1, 30, 'TZ'), 100.00, 'John'),
+            ('test3', 'B453', 'Fred', None, TimeZone(1, 30, 'TZ'), 100.00, 'Fred'),
+            ('test4', 'G9956', 'Cris', '', TimeZone(1, 30, 'TZ'), 100.00, 'Cris'),
+        ]
+
+        for test, account_number, first_name, last_name, tz, balance, result in cases:
+            with self.subTest(test_number=f'Test # {test}'):
+                self.assertRaises(ValueError, Account, account_number, first_name, last_name, tz, balance)
+
     def tearDown(self):
         del self.account_number
         del self.first_name
@@ -277,7 +392,7 @@ class TestInstanceLastNameAttribute(unittest.TestCase):
         del self.a
 
 
-class TestTimeZoneAttribute(unittest.TestCase):
+class TestTimeZone(unittest.TestCase):
     def setUp(self):
         self.account_number = 'A100'
         self.first_name = 'FIRST'
@@ -327,8 +442,22 @@ class TestTimeZoneAttribute(unittest.TestCase):
         with self.assertRaises(ValueError):
             Account(self.account_number, self.first_name, self.last_name, self.tz, self.balance)
 
-    def test_method_is_property(self):
+    def test_timezone_is_property(self):
+        self.assertIsInstance(Account.timezone, property)
+        # alternatively:
         self.assertTrue(isinstance(inspect.getattr_static(Account, 'timezone'), property))
+
+    def test_timezone(self):
+        cases = [
+            ('test1', 'A100', 'Daniel', 'de Boer', TimeZone(1, 30, 'TZ'), 100.00, TimeZone(1, 30, 'TZ')),
+            ('test2', 'A200', 'John', 'Lennon', TimeZone(-1, -30, 'MTS'), 100.00, TimeZone(-1, -30, 'MTS')),
+            ('test3', 'B453', 'Fred', 'Mercury', TimeZone(6, -45, 'LUH'), 100.00, TimeZone(6, -45, 'LUH')),
+            ('test4', 'G9956', 'Cris', 'Scott', TimeZone(0, 0, 'UTC'), 100.00, TimeZone(0, 0, 'UTC')),
+        ]
+
+        for test, account_number, first_name, last_name, tz, balance, result in cases:
+            with self.subTest(test_number=f'Test # {test}'):
+                self.assertEqual(Account(account_number, first_name, last_name, tz, balance).timezone, result)
 
     def tearDown(self):
         del self.account_number
@@ -339,7 +468,7 @@ class TestTimeZoneAttribute(unittest.TestCase):
         del self.a
 
 
-class TestBalanceAttribute(unittest.TestCase):
+class TestBalance(unittest.TestCase):
     def setUp(self):
         self.account_number = 'A100'
         self.first_name = 'FIRST'
@@ -385,8 +514,22 @@ class TestBalanceAttribute(unittest.TestCase):
         # print(self.a.__class__.__dict__)
         self.assertIn('balance', self.a.__class__.__dict__)
 
-    def test_method_is_property(self):
+    def test_balance_is_property(self):
+        self.assertIsInstance(Account.balance, property)
+        # alternatively:
         self.assertTrue(isinstance(inspect.getattr_static(Account, 'balance'), property))
+
+    def test_balance(self):
+        cases = [
+            ('test1', 'A100', 'Daniel', 'de Boer', TimeZone(1, 30, 'TZ'), 100.00, 100.00),
+            ('test2', 'A200', 'John', 'Lennon', TimeZone(-1, -30, 'MTS'), 200.00, 200.00),
+            ('test3', 'B453', 'Fred', 'Mercury', TimeZone(6, -45, 'LUH'), 1000.00, 1000.00),
+            ('test4', 'G9956', 'Cris', 'Scott', TimeZone(0, 0, 'UTC'), 1.00, 1.00),
+        ]
+
+        for test, account_number, first_name, last_name, tz, balance, result in cases:
+            with self.subTest(test_number=f'Test # {test}'):
+                self.assertEqual(Account(account_number, first_name, last_name, tz, balance).balance, result)
 
     def tearDown(self):
         del self.account_number
@@ -397,7 +540,7 @@ class TestBalanceAttribute(unittest.TestCase):
         del self.a
 
 
-class TestFullNameAttribute(unittest.TestCase):
+class TestFullName(unittest.TestCase):
     def setUp(self):
         self.account_number = 'A100'
         self.first_name = 'FIRST'
@@ -428,8 +571,22 @@ class TestFullNameAttribute(unittest.TestCase):
         # print(self.a.__class__.__dict__)
         self.assertIn('full_name', self.a.__class__.__dict__)
 
-    def test_method_is_property(self):
+    def test_full_name_is_property(self):
+        self.assertIsInstance(Account.full_name, property)
+        # alternatively:
         self.assertTrue(isinstance(inspect.getattr_static(Account, 'full_name'), property))
+
+    def test_full_name(self):
+        cases = [
+            ('test1', 'A100', 'Daniel', 'de Boer', TimeZone(1, 30, 'TZ'), 100.00, 'Daniel de Boer'),
+            ('test2', 'A200', 'John', 'Lennon', TimeZone(-1, -30, 'MTS'), 200.00, 'John Lennon'),
+            ('test3', 'B453', 'Fred', 'Mercury', TimeZone(6, -45, 'LUH'), 1000.00, 'Fred Mercury'),
+            ('test4', 'G9956', 'Cris', 'Scott', TimeZone(0, 0, 'UTC'), 1.00, 'Cris Scott'),
+        ]
+
+        for test, account_number, first_name, last_name, tz, balance, result in cases:
+            with self.subTest(test_number=f'Test # {test}'):
+                self.assertEqual(Account(account_number, first_name, last_name, tz, balance).full_name, result)
 
     def tearDown(self):
         del self.account_number
@@ -453,6 +610,8 @@ class TestClassMethodSetInterestRateMethod(unittest.TestCase):
         """Test that it is a method and that it is a class method.
         if inspect.ismethod(cls.method) and cls.method.__self__ is cls:
         method bound to the class, e.g. a classmethod"""
+        self.assertIsInstance(Account.__dict__['set_interest_rate'], classmethod)
+        # alternatively:
         self.assertTrue(inspect.ismethod(Account.set_interest_rate) and Account.set_interest_rate.__self__ is Account)
         # alternatively testing if method is classmethod:
         self.assertTrue(isinstance(Account.__dict__['set_interest_rate'], classmethod))
@@ -503,6 +662,19 @@ class TestClassMethodSetInterestRateMethod(unittest.TestCase):
             self.assertRaises(ValueError, self.a.__class__.set_interest_rate, entry)
         for char in set(punctuation):
             self.assertRaises(ValueError, self.a.__class__.set_interest_rate, char)
+
+    def test_set_interest_rate(self):
+        cases = [
+            ('test1', Account, 0.1, 0.1),
+            ('test2', Account, 0.5, 0.5),
+            ('test3', Account, 0.7, 0.7),
+            ('test4', Account, 1.0, 1.0),
+        ]
+
+        for test, account, interest_rate, result in cases:
+            with self.subTest(test_number=f'Test # {test}'):
+                account.set_interest_rate(interest_rate)
+                self.assertEqual(account.get_interest_rate(), result)
 
     def tearDown(self):
         del self.account_number
@@ -571,8 +743,9 @@ class TestMethodValidateAndSetName(unittest.TestCase):
         self.balance = 100.00
         self.a = Account(self.account_number, self.first_name, self.last_name, self.tz, self.balance)
 
-    def test_get_interest_rate_is_class_method(self):
-        # alternatively testing if method is just method:
+    def test_get_interest_rate_is_function(self):
+        self.assertIsInstance(Account.__dict__['validate_and_set_name'], types.FunctionType)
+        # alternatively:
         self.assertTrue(isinstance(Account.__dict__['validate_and_set_name'], types.FunctionType))
         # alternatively:
         self.assertTrue(isinstance(inspect.getattr_static(Account, 'validate_and_set_name'), types.FunctionType))
@@ -666,7 +839,8 @@ class TestStaticMethodValidateRealNumber(unittest.TestCase):
 
     def test_static_method(self):
         """Test that it is a method and that it is a static method."""
-        # testing if method is staticmethod:
+        self.assertIsInstance(Account.__dict__['validate_real_number'], staticmethod)
+        # alternatively:
         self.assertTrue(isinstance(Account.__dict__['validate_real_number'], staticmethod))
         # alternatively:
         self.assertTrue(isinstance(inspect.getattr_static(Account, 'validate_real_number'), staticmethod))
@@ -674,6 +848,12 @@ class TestStaticMethodValidateRealNumber(unittest.TestCase):
     def test_validate_real_number_easy(self):
         self.assertEqual(type(self.a).validate_real_number(1.0, min_value=0.1), 1.0)
         self.assertEqual(self.a.validate_real_number(1.0, min_value=0.1), 1.0)
+
+    def test_account_has_validate_real_number_function_attribute(self):
+        self.assertTrue(hasattr(Account, 'validate_real_number'))
+
+    def test_account_has_callable_validate_real_number_function(self):
+        self.assertTrue(callable(Account.validate_real_number))
 
     def test_if_validate_real_number_method_belongs_to_class(self):
         # print(Account.__dict__)
@@ -715,10 +895,50 @@ class TestGenerateConfirmationCode(unittest.TestCase):
         self.balance = 100.00
         self.b = Account(self.account_number, self.first_name, self.last_name, self.tz, self.balance)
 
+    @patch("app.Account.datetime")
+    def test_get_datetime_as_20110309080000_with_patch_decorator(self, mock_dt):
+        mock_dt.utcnow = Mock(return_value=datetime(2011, 3, 9, 8, 0, 0))
+        actual = self.b.generate_confirmation_code('D')
+        expected = 'D-A100-20110309080000-100'
+        self.assertEqual(actual, expected)
+
+    def test_get_datetime_as_20050309080000_without_patch_decorator(self):
+        with patch("app.Account.datetime") as mock_datetime:
+            mock_datetime.utcnow = Mock(return_value=datetime(2011, 3, 9, 8, 0, 0))
+            actual = self.b.generate_confirmation_code('D')
+            expected = 'D-A100-20110309080000-100'
+            self.assertEqual(actual, expected)
+
+    def test_get_datetime_as_20050309080000_in_other_functions(self):
+        with patch("app.Account.datetime") as mock_datetime:
+            mock_datetime.utcnow = Mock(return_value=datetime(2011, 3, 9, 8, 0, 0))
+            actual = self.b.deposit(100)
+            expected = 'D-A100-20110309080000-100'
+            self.assertEqual(actual, expected)
+
+            actual = self.b.withdrawal(100)
+            expected = 'W-A100-20110309080000-101'
+            self.assertEqual(actual, expected)
+
+            actual = self.b.pay_interest()
+            expected = 'I-A100-20110309080000-102'
+            self.assertEqual(actual, expected)
+
+            actual = self.b.withdrawal(1000)
+            expected = 'X-A100-20110309080000-103'
+            self.assertEqual(actual, expected)
+
     def test_generate_confirmation_code_is_method(self):
         """Test that it is a function method."""
-        # testing if method is just a function, import types:
+        self.assertIsInstance(Account.__dict__['generate_confirmation_code'], types.FunctionType)
+        # alternatively:
         self.assertTrue(isinstance(Account.__dict__['generate_confirmation_code'], types.FunctionType))
+
+    def test_function_attribute(self):
+        self.assertTrue(hasattr(self.b, 'generate_confirmation_code'))
+
+    def test_function_callable(self):
+        self.assertTrue(callable(self.b.generate_confirmation_code))
 
     def test_generate_confirmation_code_easy(self):
         dt_str = datetime.utcnow().strftime('%Y%m%d%H%M%S')
@@ -733,6 +953,34 @@ class TestGenerateConfirmationCode(unittest.TestCase):
 
         r = trans_codes['deposit'] + "-" + acc_number + "-" + str(dt_str) + "-" + str(next(trans_counter))
         self.assertEqual(self.b.generate_confirmation_code('D'), r)
+
+    def test_generate_confirmation_code(self):
+        dt_str = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+        trans_counter = itertools.count(100)
+
+        trans_codes = {
+            'deposit': 'D',
+            'withdraw': 'W',
+            'interest': 'I',
+            'rejected': 'X'
+        }
+
+        r1 = trans_codes['deposit'] + "-" + 'A100' + "-" + str(dt_str) + "-" + str(next(trans_counter))
+        r2 = trans_codes['withdraw'] + "-" + 'A200' + "-" + str(dt_str) + "-" + str(next(trans_counter))
+        r3 = trans_codes['interest'] + "-" + 'B453' + "-" + str(dt_str) + "-" + str(next(trans_counter))
+        r4 = trans_codes['rejected'] + "-" + 'G9956' + "-" + str(dt_str) + "-" + str(next(trans_counter))
+
+        cases = [
+            ('test1', 'A100', 'FIRST', 'LAST', TimeZone(1, 30, 'TZ'), 100.00, trans_codes['deposit'], r1),
+            ('test2', 'A200', 'FIRST', 'LAST', TimeZone(1, 30, 'TZ'), 100.00, trans_codes['withdraw'], r2),
+            ('test3', 'B453', 'FIRST', 'LAST', TimeZone(1, 30, 'TZ'), 100.00, trans_codes['interest'], r3),
+            ('test4', 'G9956', 'FIRST', 'LAST', TimeZone(1, 30, 'TZ'), 100.00, trans_codes['rejected'], r4),
+        ]
+
+        for test, account_number, first_name, last_name, tz, balance, transaction_code, result in cases:
+            with self.subTest(test_number=f'Test # {test}'):
+                self.assertEqual(Account(account_number, first_name, last_name, tz, balance).
+                                 generate_confirmation_code(transaction_code), result)
 
     def test_if_generate_confirmation_code_method_belongs_to_class(self):
         # print(Account.__dict__)
@@ -765,7 +1013,8 @@ class TestStaticMethodParseConfirmationCode(unittest.TestCase):
 
     def test_static_method(self):
         """Test that it is a method and that it is a static method."""
-        # testing if method is staticmethod:
+        self.assertIsInstance(Account.__dict__['parse_confirmation_code'], staticmethod)
+        # alternatively:
         self.assertTrue(isinstance(Account.__dict__['parse_confirmation_code'], staticmethod))
         # alternatively:
         self.assertTrue(isinstance(inspect.getattr_static(Account, 'parse_confirmation_code'), staticmethod))
@@ -820,6 +1069,12 @@ class TestStaticMethodParseConfirmationCode(unittest.TestCase):
         self.assertRaises(ValueError, self.a.__class__.parse_confirmation_code, 'D-A100-20220822200421-100',
                           preferred_time_zone=str)
 
+    def test_function_attribute(self):
+        self.assertTrue(hasattr(self.a, 'parse_confirmation_code'))
+
+    def test_function_callable(self):
+        self.assertTrue(callable(self.a.parse_confirmation_code))
+
     def tearDown(self):
         del self.account_number
         del self.first_name
@@ -844,7 +1099,8 @@ class TestDeposit(unittest.TestCase):
 
     def test_deposit_is_method(self):
         """Test that it is a function method."""
-        # testing if method is just a function, import types:
+        self.assertIsInstance(Account.__dict__['deposit'], types.FunctionType)
+        # alternatively:
         self.assertTrue(isinstance(Account.__dict__['deposit'], types.FunctionType))
 
     def test_deposit_easy(self):
@@ -864,6 +1120,12 @@ class TestDeposit(unittest.TestCase):
     def test_account_deposit_negative_amount(self):
         with self.assertRaises(ValueError):
             conf_code = self.b.deposit(-100)
+
+    def test_function_attribute(self):
+        self.assertTrue(hasattr(self.b, 'deposit'))
+
+    def test_function_callable(self):
+        self.assertTrue(callable(self.b.deposit))
 
     def tearDown(self):
         del self.account_number
@@ -887,7 +1149,8 @@ class TestWithdrawal(unittest.TestCase):
 
     def test_withdrawal_is_method(self):
         """Test that it is a function method."""
-        # testing if method is just a function, import types:
+        self.assertIsInstance(Account.__dict__['withdrawal'], types.FunctionType)
+        # alternatively:
         self.assertTrue(isinstance(Account.__dict__['withdrawal'], types.FunctionType))
 
     def test_deposit_easy(self):
@@ -915,6 +1178,12 @@ class TestWithdrawal(unittest.TestCase):
         with self.assertRaises(ValueError):
             conf_code = self.b.withdrawal(-100)
 
+    def test_function_attribute(self):
+        self.assertTrue(hasattr(self.b, 'withdrawal'))
+
+    def test_function_callable(self):
+        self.assertTrue(callable(self.b.withdrawal))
+
     def tearDown(self):
         del self.account_number
         del self.first_name
@@ -938,7 +1207,8 @@ class TestPayInterest(unittest.TestCase):
 
     def test_pay_interest_is_method(self):
         """Test that it is a function method."""
-        # testing if method is just a function, import types:
+        self.assertIsInstance(Account.__dict__['pay_interest'], types.FunctionType)
+        # alternatively:
         self.assertTrue(isinstance(Account.__dict__['pay_interest'], types.FunctionType))
 
     def test_pay_interest_easy(self):
@@ -952,6 +1222,12 @@ class TestPayInterest(unittest.TestCase):
     def test_if_generate_confirmation_code_method_belongs_to_class(self):
         # print(Account.__dict__)
         self.assertIn('pay_interest', Account.__dict__)
+
+    def test_function_attribute(self):
+        self.assertTrue(hasattr(self.b, 'pay_interest'))
+
+    def test_function_callable(self):
+        self.assertTrue(callable(self.b.pay_interest))
 
     def tearDown(self):
         del self.account_number

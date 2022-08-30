@@ -18,7 +18,8 @@ class Account:
     }
 
     def __init__(self, account_number, first_name, last_name, timezone=None, initial_balance=0):
-        # in practice we probably would want to add checks to make sure these values are valid / non-empty
+        # in practice we probably would want to add checks to account number
+        # make sure these values are valid / non-empty
         self._account_number = account_number
         self.first_name = first_name
         self.last_name = last_name
@@ -180,16 +181,31 @@ class Account:
                 self.balance == other.balance and
                 self.account_number == other.account_number)
 
-
+#
 # if __name__ == '__main__':
-#     a = Account('123456', 'Eric', 'Idle', TimeZone(-2, 0, 'MTS'), 1000)
-#     print(a.balance)
-#     print(a.first_name)
-#     a.first_name = "Daniel"
-#     print(a.first_name)
-#     print(a.balance)
-#     print(a.generate_confirmation_code('D'))
-#     print(a.deposit(100))
+#     from unittest.mock import Mock, MagicMock
+#     from datetime import datetime
+#
+#     a = Account('123456', 'Eric', 'Idle', TimeZone(-2, 0, 'MTS'), 100)
+
+    # print(a.first_name)
+    # a.first_name = "Daniel"
+    # print(a.first_name)
+    #
+    # print(a.balance)
+    # print(a.deposit(100))
+    # print(a.balance)
+
+    # datetime = Mock()
+    # datetime.return_value = '20050309080000'
+    # print(datetime())
+    # print(datetime.utcnow().strftime('%Y%m%d%H%M%S'))
+    # print(a.generate_confirmation_code('D'))
+
+    # next = Mock()
+    # next.return_value = 333
+    # print(a.deposit(100))
+    # print(a.withdrawal(100))
 #     print(a.balance)
 #
 #     try:
